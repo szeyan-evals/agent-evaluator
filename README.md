@@ -1,5 +1,8 @@
 # Agent Trajectory Evaluator
 
+<!-- CI badge — replace OWNER with your GitHub org/user after pushing to GitHub -->
+[![CI](https://github.com/<OWNER>/agent-evaluator/actions/workflows/ci.yml/badge.svg)](https://github.com/<OWNER>/agent-evaluator/actions/workflows/ci.yml)
+
 Evaluate LLM tool-calling agents by running test scenarios, recording trajectories, and scoring them with an LLM-as-judge.
 
 ## Setup
