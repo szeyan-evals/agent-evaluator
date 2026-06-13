@@ -31,3 +31,6 @@ line-length = 100
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["src"]
+markers = [
+    "live: requires live API keys; skipped by default. Run with `pytest -m live`.",
+]
