@@ -12,12 +12,12 @@ progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 8
-  completed_plans: 6
-  percent: 90
-last_session: 2026-06-13 — Phase 5 Plan 02 executed (runner + report integration tests)
-last_action: 05-02-PLAN.md complete. test_runner_integration.py (5 tests: happy-path, xfail F-H, max-steps, OpenAI, F-G round-trip) + test_report.py (5 tests: empty, all-ok, partial, legacy, comparison-partial). 95 tests passing, 1 xfailed, ruff clean. Commits: 6c2372b, 2bc417e.
-next_step: Execute 05-03-PLAN.md (judge.py LLM-path integration tests + live smoke tests)
-stopped_at: Phase 5 Plan 02 complete; Plan 03 not started
+  completed_plans: 7
+  percent: 93
+last_session: 2026-06-13 — Phase 5 Plan 03 executed (judge LLM-path integration tests + live smoke tests)
+last_action: 05-03-PLAN.md complete. test_judge_integration.py (5 tests: fenced parse, retry, retry-exhaustion F-A, fence-strip F-I, gather-mixed F-A) + test_live_smoke.py (3 marker-skipped live tests). 100 tests passing, 3 deselected, 1 xfailed, ruff clean. Commits: 7d0d7b4, 54a2e51.
+next_step: Execute 05-04-PLAN.md (CI workflow + README badge)
+stopped_at: Phase 5 Plan 03 complete; Plan 04 not started
 notes: |
   Project is brownfield with NO-GO verdict from System Judge full-pipeline review.
   Source of truth for failure modes and remediation scope:
@@ -47,7 +47,7 @@ notes: |
 | 2 | Error Recovery Dimension Fix | structurally complete (35/35 tests; T1-T5 executed; F-B empirically eliminated; live-API smoke optional) |
 | 3 | Vendor Coupling Fix | structurally complete (47/47 tests; ruff clean; F-C closed; F-D closed; F-J hygiene done) |
 | 4 | Deterministic Detectors First | structurally complete (69/69 tests; ruff clean; 3 det/2 LLM split shipped; ~54% LLM call reduction) |
-| 5 | Test Coverage and CI | in progress — Plan 01 complete (fixture infra); Plans 02-04 pending |
+| 5 | Test Coverage and CI | in progress — Plans 01-03 complete (fixture infra, runner/report tests, judge LLM-path tests); Plan 04 pending |
 
 ## Recent Sessions
 
@@ -57,11 +57,12 @@ notes: |
 - **2026-06-11** — Phase 5 planned: 05-PATTERNS.md (pattern map), 4 PLAN.md files in 2 waves, plan-checker verified after 2 revision rounds (blockers: fictional `final_answer_quality` dimension name; bare-asterisk assertions colliding with Markdown bold). STATE/ROADMAP updated. No code changes.
 - **2026-06-13** — Phase 5 Plan 01 executed: `pyproject.toml` live marker, 7 fixture JSON files, `tests/conftest.py` with `FixtureAnthropicClient` + `FixtureOpenAIClient`. 86 tests passing. Deviation: `IndexError` used instead of `StopIteration` for async exhaustion (PEP 479). Commits: 0b25bcc, 21b96ec, 953217f, 06d3974.
 - **2026-06-13** — Phase 5 Plan 02 executed: `tests/test_runner_integration.py` (5 tests: Anthropic/OpenAI happy-path, F-H strict xfail, max-steps guard, F-G round-trip), `tests/test_report.py` (5 tests: empty, all-ok, partial, legacy, comparison-partial). 95 tests passing, 1 xfailed, ruff clean. Commits: 6c2372b, 2bc417e.
+- **2026-06-13** — Phase 5 Plan 03 executed: `tests/test_judge_integration.py` (5 tests: fenced parse, retry, retry-exhaustion F-A, fence-strip F-I, gather-mixed F-A), `tests/test_live_smoke.py` (3 @pytest.mark.live tests: short-circuit, LLM dim, OpenAI routing). 100 tests passing, 3 deselected, 1 xfailed, ruff clean. Commits: 7d0d7b4, 54a2e51.
 
 ## Next Steps
 
 1. ~~Execute 05-02-PLAN.md — runner.py + report.py integration tests (TEST-01, TEST-03).~~ DONE
-2. Execute 05-03-PLAN.md — judge.py LLM-path integration tests + live smoke tests (TEST-02).
+2. ~~Execute 05-03-PLAN.md — judge.py LLM-path integration tests + live smoke tests (TEST-02).~~ DONE
 3. Execute 05-04-PLAN.md — CI workflow + README badge (TEST-04); checkpoint for post-push CI verification.
 4. **v1 closure:** after Phase 5 lands, regenerate `results/comparison.md` under the new schema and re-run System Judge as `judge ship` to flip NO-GO → GO.
 
