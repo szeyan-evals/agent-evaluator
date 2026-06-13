@@ -143,8 +143,8 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 05-02-PLAN.md — runner.py integration tests (TEST-01, F-G/F-H/max-steps guards) + report.py edge-case tests (TEST-03) (Wave 2)
-- [ ] 05-03-PLAN.md — judge.py LLM-path integration tests (TEST-02, F-A/F-I guards) + marker-skipped live smoke tests (Wave 2)
-- [ ] 05-04-PLAN.md — CI workflow `.github/workflows/ci.yml` + README badge (TEST-04); checkpoint for post-push CI verification (Wave 2)
+- [x] 05-03-PLAN.md — judge.py LLM-path integration tests (TEST-02, F-A/F-I guards) + marker-skipped live smoke tests (Wave 2)
+- [x] 05-04-PLAN.md — CI workflow `.github/workflows/ci.yml` + README badge (TEST-04); CI-green is a pending human-verify checkpoint (post-push) (Wave 2)
 
 **Affected files** (per `05-CONTEXT.md` — supersedes the original cassette-based sketch):
 
@@ -187,4 +187,4 @@ A regenerated `results/comparison.md` between two distinct models, produced unde
 When this artifact lands, v1 is complete. The System Judge can be re-run as `judge ship` to flip NO-GO → CONDITIONAL GO or GO.
 
 ---
-*Last updated: 2026-06-13 — Phase 5 Plan 02 complete (runner + report integration tests; 95 passing, 1 xfailed).*
+*Last updated: 2026-06-13 — Phase 5 Plan 04 complete (CI workflow + README badge; 100 passing, 3 deselected, 1 xfailed). All 8 plans executed. CI-green pending human-verify (GitHub push required).*
