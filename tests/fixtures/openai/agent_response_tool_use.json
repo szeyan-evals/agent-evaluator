@@ -1,0 +1,19 @@
+{
+  "choices": [
+    {
+      "message": {
+        "tool_calls": [
+          {
+            "id": "call_01",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\": \"San Francisco\"}"
+            }
+          }
+        ],
+        "content": null
+      }
+    }
+  ],
+  "usage": {"prompt_tokens": 150, "completion_tokens": 42}
+}

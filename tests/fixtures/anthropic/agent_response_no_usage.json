@@ -1,0 +1,6 @@
+{
+  "content": [
+    {"type": "text", "text": "Done."}
+  ],
+  "stop_reason": "end_turn"
+}

@@ -1,0 +1,7 @@
+{
+  "content": [
+    {"type": "text", "text": "```json\n{\"score\": 0.9, \"reasoning\": \"Good parameter quality.\", \"evidence\": [\"Used correct city parameter\"]}\n```"}
+  ],
+  "usage": {"input_tokens": 300, "output_tokens": 60},
+  "stop_reason": "end_turn"
+}

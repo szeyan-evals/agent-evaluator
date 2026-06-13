@@ -1,0 +1,11 @@
+{
+  "choices": [
+    {
+      "message": {
+        "tool_calls": [],
+        "content": "San Francisco is warmest at 62°F."
+      }
+    }
+  ],
+  "usage": {"prompt_tokens": 200, "completion_tokens": 25}
+}

@@ -1,0 +1,8 @@
+{
+  "content": [
+    {"type": "text", "text": "I'll look up the weather for you."},
+    {"type": "tool_use", "id": "tu_01", "name": "get_weather", "input": {"city": "San Francisco"}}
+  ],
+  "usage": {"input_tokens": 150, "output_tokens": 42},
+  "stop_reason": "tool_use"
+}

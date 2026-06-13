@@ -1,0 +1,7 @@
+{
+  "content": [
+    {"type": "text", "text": "```json\n{score: 0.9 BROKEN\n```"}
+  ],
+  "usage": {"input_tokens": 300, "output_tokens": 20},
+  "stop_reason": "end_turn"
+}
