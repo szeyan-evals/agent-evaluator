@@ -138,7 +138,7 @@
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — Fixture infrastructure: `conftest.py` replay clients, hand-rolled SDK fixture JSON, `live` pytest marker (Wave 1)
+- [x] 05-01-PLAN.md — Fixture infrastructure: `conftest.py` replay clients, hand-rolled SDK fixture JSON, `live` pytest marker (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -187,4 +187,4 @@ A regenerated `results/comparison.md` between two distinct models, produced unde
 When this artifact lands, v1 is complete. The System Judge can be re-run as `judge ship` to flip NO-GO → CONDITIONAL GO or GO.
 
 ---
-*Last updated: 2026-06-11 — Phase 5 planned (4 plans, 2 waves).*
+*Last updated: 2026-06-13 — Phase 5 Plan 01 complete (fixture infrastructure, live marker, conftest replay clients).*

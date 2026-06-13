@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 project: agent-evaluator
 milestone: v1-remediation
 milestone_name: v1 — Remediation
-status: phase-5-planned
+status: phase-5-in-progress
 current_phase: 5
 phases_total: 5
 phases_completed: 4
-last_updated: "2026-06-11T06:20:00.000Z"
+last_updated: "2026-06-13T07:45:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 8
-  completed_plans: 4
-  percent: 80
-last_session: 2026-06-11 — Phase 5 planned via /gsd-plan-phase 5 (pattern-mapper + planner + 3-iteration checker loop)
-last_action: 4 plans written and verified (05-01..05-04, 2 waves). Checker found 2 blockers in 05-PATTERNS.md/05-02 (fictional dimension name final_answer_quality; Markdown-bold asterisk assertion collisions) — fixed and re-verified PASS on iteration 3.
-next_step: /gsd-execute-phase 5
-stopped_at: Phase 5 planning complete; execution not started
+  completed_plans: 5
+  percent: 85
+last_session: 2026-06-13 — Phase 5 Plan 01 executed (fixture infra, live marker, conftest replay clients)
+last_action: 05-01-PLAN.md complete. FixtureAnthropicClient + FixtureOpenAIClient in conftest.py, 7 fixture JSON files, live marker. 86 tests passing, ruff clean. Decision: IndexError replaces StopIteration for async exhaustion (PEP 479).
+next_step: Execute 05-02-PLAN.md (runner + report integration tests)
+stopped_at: Phase 5 Plan 01 complete; Plan 02 not started
 notes: |
   Project is brownfield with NO-GO verdict from System Judge full-pipeline review.
   Source of truth for failure modes and remediation scope:
@@ -47,7 +47,7 @@ notes: |
 | 2 | Error Recovery Dimension Fix | structurally complete (35/35 tests; T1-T5 executed; F-B empirically eliminated; live-API smoke optional) |
 | 3 | Vendor Coupling Fix | structurally complete (47/47 tests; ruff clean; F-C closed; F-D closed; F-J hygiene done) |
 | 4 | Deterministic Detectors First | structurally complete (69/69 tests; ruff clean; 3 det/2 LLM split shipped; ~54% LLM call reduction) |
-| 5 | Test Coverage and CI | planned (4 plans in 2 waves, checker-verified on iteration 3/3); ready to execute |
+| 5 | Test Coverage and CI | in progress — Plan 01 complete (fixture infra); Plans 02-04 pending |
 
 ## Recent Sessions
 
@@ -55,12 +55,14 @@ notes: |
 - **2026-05-05** — Manual project initialization. Created `.planning/` artifacts (PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, config.json, codebase/, research/) from the System Judge findings. No code changes.
 - **2026-05-06/07** — Phases 1-4 executed (TRUST schema, error-recovery N/A short-circuit, make_judge vendor factory, deterministic detectors). 69/69 tests, ruff clean. Phase 5 discussion locked D1-D4.
 - **2026-06-11** — Phase 5 planned: 05-PATTERNS.md (pattern map), 4 PLAN.md files in 2 waves, plan-checker verified after 2 revision rounds (blockers: fictional `final_answer_quality` dimension name; bare-asterisk assertions colliding with Markdown bold). STATE/ROADMAP updated. No code changes.
+- **2026-06-13** — Phase 5 Plan 01 executed: `pyproject.toml` live marker, 7 fixture JSON files, `tests/conftest.py` with `FixtureAnthropicClient` + `FixtureOpenAIClient`. 86 tests passing. Deviation: `IndexError` used instead of `StopIteration` for async exhaustion (PEP 479). Commits: 0b25bcc, 21b96ec, 953217f, 06d3974.
 
 ## Next Steps
 
-1. `/gsd-execute-phase 5` — run the 4 verified plans (Wave 1: fixture infra; Wave 2: runner+report tests, judge+live tests, CI workflow).
-2. Plan 05-04 ends in a human-verify checkpoint: CI greenness requires `git init` + GitHub push, which is user-side.
-3. **v1 closure:** after Phase 5 lands, regenerate `results/comparison.md` under the new schema and re-run System Judge as `judge ship` to flip NO-GO → GO.
+1. Execute 05-02-PLAN.md — runner.py + report.py integration tests (TEST-01, TEST-03).
+2. Execute 05-03-PLAN.md — judge.py LLM-path integration tests + live smoke tests (TEST-02).
+3. Execute 05-04-PLAN.md — CI workflow + README badge (TEST-04); checkpoint for post-push CI verification.
+4. **v1 closure:** after Phase 5 lands, regenerate `results/comparison.md` under the new schema and re-run System Judge as `judge ship` to flip NO-GO → GO.
 
 ## Open Questions (raised during init, deferred to phase discussion)
 
