@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 project: agent-evaluator
 milestone: v1-remediation
 milestone_name: v1 — Remediation
-status: phase-5-in-progress
+status: phase-5-complete-ci-pending
 current_phase: 5
 phases_total: 5
-phases_completed: 4
+phases_completed: 5
 last_updated: "2026-06-13T08:04:00.000Z"
 progress:
   total_phases: 5
@@ -14,8 +14,8 @@ progress:
   total_plans: 8
   completed_plans: 8
   percent: 100
-last_session: 2026-06-13 — Phase 5 Plan 04 executed (CI workflow + README badge)
-last_action: 05-04-PLAN.md complete. .github/workflows/ci.yml (ruff + pytest -m 'not live', pinned actions, no secrets, pull_request not pull_request_target) + README CI badge (<OWNER> placeholder). YAML validated locally. 100 tests passing, 3 deselected, 1 xfailed, ruff clean. Commits: cd3c3bc, a7459f7. CI-green checkpoint PENDING — requires GitHub push.
+last_session: 2026-06-13 — Phase 5 fully executed (all 4 plans) + git init + verifier PASS
+last_action: All 4 Phase 5 plans executed and committed. gsd-verifier verdict PASS (4/4 TEST-01..04). Suite 102 passed, 3 live deselected, 1 xfail (F-H strict), ruff clean. Repo git-init'd (.env/.venv/results gitignored, secrets verified absent). Post-exec fix fe4ed12: added pyproject addopts `-m 'not live'` so bare pytest is hermetic (live tests were running against real API on a bare run). CI-green still PENDING — needs GitHub remote + push.
 next_step: PENDING human-verify — push to GitHub, replace <OWNER> in README badge, confirm CI green, then run `judge ship` for v1 closure
 stopped_at: Phase 5 Plan 04 complete; awaiting human-verify CI checkpoint (post-push)
 notes: |
@@ -24,9 +24,12 @@ notes: |
   ~/.claude/system-judge/judgments/2026-05-04_agent-evaluator_full.md
   (also linked at .planning/research/JUDGMENT.md).
 
-  Project is NOT a git repository in v1 scope. config.json sets
-  commit_docs=false; .planning/ stays local-only. Plan 05-04's "CI green"
-  acceptance is a human-verify checkpoint — requires git init + GitHub push first.
+  Repository was git-init'd on 2026-06-13 (was non-git through Phases 1-4).
+  Initial commit 640bc8b captures Phase 1-4 + sentinel/cost work. .gitignore
+  excludes .env, .venv/, results/; .env.example ships placeholders only.
+  config.json commit_docs flipped to true. Plan 05-04's "CI green" acceptance
+  still pending: no GitHub remote yet — push required, then replace <OWNER> in
+  the README badge.
 
   gsd-sdk binary now exposes the query API (was missing in May 2026 sessions);
   the autonomous workflow path works again. Note: `state.planned-phase` rewrites
@@ -47,7 +50,7 @@ notes: |
 | 2 | Error Recovery Dimension Fix | structurally complete (35/35 tests; T1-T5 executed; F-B empirically eliminated; live-API smoke optional) |
 | 3 | Vendor Coupling Fix | structurally complete (47/47 tests; ruff clean; F-C closed; F-D closed; F-J hygiene done) |
 | 4 | Deterministic Detectors First | structurally complete (69/69 tests; ruff clean; 3 det/2 LLM split shipped; ~54% LLM call reduction) |
-| 5 | Test Coverage and CI | structurally complete — all 4 plans executed; CI workflow written + locally validated; CI-green awaits GitHub push (human-verify checkpoint) |
+| 5 | Test Coverage and CI | complete (verifier PASS 4/4) — 102 tests + 3 live (deselected by default) + 1 xfail; conftest fixture clients, runner/judge/report integration tests, CI workflow; CI-green awaits GitHub push (human-verify) |
 
 ## Recent Sessions
 
