@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-evaluator"
+version = "0.1.0"
+description = "Evaluate LLM agent trajectories on tool-calling quality"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "anthropic>=0.40",
+    "openai>=1.50",
+    "jinja2>=3.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "ruff>=0.5"]
+
+[project.scripts]
+agent-eval = "agent_evaluator.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_evaluator", "scenarios"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src"]

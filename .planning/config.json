@@ -1,0 +1,19 @@
+{
+  "mode": "interactive",
+  "granularity": "coarse",
+  "parallelization": false,
+  "commit_docs": false,
+  "model_profile": "balanced",
+  "workflow": {
+    "research": false,
+    "plan_check": true,
+    "verifier": true,
+    "nyquist_validation": false,
+    "auto_advance": false
+  },
+  "notes": {
+    "research_off_reason": "Source-of-truth research already exists as the System Judge full-pipeline judgment at ~/.claude/system-judge/judgments/2026-05-04_agent-evaluator_full.md (also linked at .planning/research/JUDGMENT.md). Re-running domain research would duplicate work. Per-phase research can be re-enabled later via /gsd-settings if a phase genuinely needs new investigation.",
+    "commit_docs_off_reason": "Project is not currently a git repository. Once `git init` happens, this can be flipped to true via /gsd-settings.",
+    "milestone": "v1-remediation"
+  }
+}
