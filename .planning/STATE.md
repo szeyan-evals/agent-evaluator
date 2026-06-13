@@ -7,17 +7,17 @@ status: phase-5-in-progress
 current_phase: 5
 phases_total: 5
 phases_completed: 4
-last_updated: "2026-06-13T07:45:00.000Z"
+last_updated: "2026-06-13T08:00:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 8
-  completed_plans: 5
-  percent: 85
-last_session: 2026-06-13 — Phase 5 Plan 01 executed (fixture infra, live marker, conftest replay clients)
-last_action: 05-01-PLAN.md complete. FixtureAnthropicClient + FixtureOpenAIClient in conftest.py, 7 fixture JSON files, live marker. 86 tests passing, ruff clean. Decision: IndexError replaces StopIteration for async exhaustion (PEP 479).
-next_step: Execute 05-02-PLAN.md (runner + report integration tests)
-stopped_at: Phase 5 Plan 01 complete; Plan 02 not started
+  completed_plans: 6
+  percent: 90
+last_session: 2026-06-13 — Phase 5 Plan 02 executed (runner + report integration tests)
+last_action: 05-02-PLAN.md complete. test_runner_integration.py (5 tests: happy-path, xfail F-H, max-steps, OpenAI, F-G round-trip) + test_report.py (5 tests: empty, all-ok, partial, legacy, comparison-partial). 95 tests passing, 1 xfailed, ruff clean. Commits: 6c2372b, 2bc417e.
+next_step: Execute 05-03-PLAN.md (judge.py LLM-path integration tests + live smoke tests)
+stopped_at: Phase 5 Plan 02 complete; Plan 03 not started
 notes: |
   Project is brownfield with NO-GO verdict from System Judge full-pipeline review.
   Source of truth for failure modes and remediation scope:
@@ -56,10 +56,11 @@ notes: |
 - **2026-05-06/07** — Phases 1-4 executed (TRUST schema, error-recovery N/A short-circuit, make_judge vendor factory, deterministic detectors). 69/69 tests, ruff clean. Phase 5 discussion locked D1-D4.
 - **2026-06-11** — Phase 5 planned: 05-PATTERNS.md (pattern map), 4 PLAN.md files in 2 waves, plan-checker verified after 2 revision rounds (blockers: fictional `final_answer_quality` dimension name; bare-asterisk assertions colliding with Markdown bold). STATE/ROADMAP updated. No code changes.
 - **2026-06-13** — Phase 5 Plan 01 executed: `pyproject.toml` live marker, 7 fixture JSON files, `tests/conftest.py` with `FixtureAnthropicClient` + `FixtureOpenAIClient`. 86 tests passing. Deviation: `IndexError` used instead of `StopIteration` for async exhaustion (PEP 479). Commits: 0b25bcc, 21b96ec, 953217f, 06d3974.
+- **2026-06-13** — Phase 5 Plan 02 executed: `tests/test_runner_integration.py` (5 tests: Anthropic/OpenAI happy-path, F-H strict xfail, max-steps guard, F-G round-trip), `tests/test_report.py` (5 tests: empty, all-ok, partial, legacy, comparison-partial). 95 tests passing, 1 xfailed, ruff clean. Commits: 6c2372b, 2bc417e.
 
 ## Next Steps
 
-1. Execute 05-02-PLAN.md — runner.py + report.py integration tests (TEST-01, TEST-03).
+1. ~~Execute 05-02-PLAN.md — runner.py + report.py integration tests (TEST-01, TEST-03).~~ DONE
 2. Execute 05-03-PLAN.md — judge.py LLM-path integration tests + live smoke tests (TEST-02).
 3. Execute 05-04-PLAN.md — CI workflow + README badge (TEST-04); checkpoint for post-push CI verification.
 4. **v1 closure:** after Phase 5 lands, regenerate `results/comparison.md` under the new schema and re-run System Judge as `judge ship` to flip NO-GO → GO.
