@@ -252,6 +252,44 @@ class TestEfficiencyDetector:
         # ratio = 1/2 → base = 1.0 - 0.15 = 0.85
         assert 0.7 < ds.score < 1.0
 
+    def test_batched_calls_beat_sequential_turns(self):
+        # 3 distinct calls over budget (expected=1, max=2). Batched into one
+        # parallel turn the agent is efficient; spread over 3 turns it isn't.
+        scen = _scenario(expected_tool_sequence=["a"], max_reasonable_steps=2)
+
+        def _turn_step(idx, name, turn):
+            return TrajectoryStep(
+                step_index=idx,
+                turn_index=turn,
+                tool_call=ToolCall(tool_name=name, parameters={}),
+                tool_response=ToolResponse(tool_name=name, result={}),
+            )
+
+        batched = AgentTrajectory(
+            scenario_id="x", model_id="m",
+            steps=[_turn_step(0, "a", 0), _turn_step(1, "b", 0), _turn_step(2, "c", 0)],
+        )
+        sequential = AgentTrajectory(
+            scenario_id="x", model_id="m",
+            steps=[_turn_step(0, "a", 0), _turn_step(1, "b", 1), _turn_step(2, "c", 2)],
+        )
+        batched_score = _detect_efficiency(batched, scen).score
+        sequential_score = _detect_efficiency(sequential, scen).score
+        # 1 turn ≤ expected_len=1 → 1.0; 3 turns over budget → < 1.0
+        assert batched_score == 1.0
+        assert batched_score > sequential_score
+
+    def test_falls_back_to_steps_without_turn_index(self):
+        # Legacy trajectory (no turn_index) is scored on raw step count.
+        scen = _scenario(expected_tool_sequence=["a"], max_reasonable_steps=2)
+        traj = AgentTrajectory(
+            scenario_id="x", model_id="m",
+            steps=[_step(0, "a"), _step(1, "b"), _step(2, "c")],
+        )
+        ds = _detect_efficiency(traj, scen)
+        assert "turns=unknown" in ds.evidence
+        assert ds.score < 1.0  # 3 steps over budget, no batching credit
+
 
 class TestFinalCorrectnessDetector:
     def test_full_match_terminated(self):

@@ -34,6 +34,14 @@ def _is_openai_model(model: str) -> bool:
     return any(model.startswith(p) for p in OPENAI_PREFIXES)
 
 
+# o-series reasoning models (o1/o3/o4...) reject the legacy `max_tokens`
+# param and require `max_completion_tokens`. gpt-* chat models still use
+# `max_tokens`. Detect so the OpenAI path picks the right kwarg instead of
+# erroring the moment self.model points at a reasoning model.
+def _is_openai_reasoning_model(model: str) -> bool:
+    return model.startswith(("o1", "o3", "o4"))
+
+
 class MockToolExecutor:
     """Simulates tool execution using canned responses from scenario definitions."""
 
@@ -155,7 +163,7 @@ class AgentRunner:
 
         start_time = time.monotonic()
 
-        for _ in range(max_steps):
+        for turn_index in range(max_steps):
             response = await self._anthropic_client.messages.create(
                 model=self.model,
                 max_tokens=2048,
@@ -188,6 +196,7 @@ class AgentRunner:
                 steps.append(
                     TrajectoryStep(
                         step_index=step_index,
+                        turn_index=turn_index,
                         thought=self._extract_thought_anthropic(response.content),
                         tool_call=tool_call,
                         tool_response=tool_response,
@@ -243,12 +252,20 @@ class AgentRunner:
 
         start_time = time.monotonic()
 
-        for _ in range(max_steps):
+        # Reasoning models require max_completion_tokens; chat models use
+        # max_tokens. Pick once outside the loop.
+        token_param = (
+            "max_completion_tokens"
+            if _is_openai_reasoning_model(self.model)
+            else "max_tokens"
+        )
+
+        for turn_index in range(max_steps):
             response = await self._openai_client.chat.completions.create(
                 model=self.model,
-                max_tokens=2048,
                 tools=tools,
                 messages=messages,
+                **{token_param: 2048},
             )
 
             choice = response.choices[0]
@@ -277,6 +294,7 @@ class AgentRunner:
                 steps.append(
                     TrajectoryStep(
                         step_index=step_index,
+                        turn_index=turn_index,
                         thought=choice.message.content,
                         tool_call=tool_call,
                         tool_response=tool_response,

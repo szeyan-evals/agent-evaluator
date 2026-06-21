@@ -89,9 +89,18 @@ class ToolResponse(BaseModel):
 
 
 class TrajectoryStep(BaseModel):
-    """One think-act-observe cycle in an agent trajectory."""
+    """One think-act-observe cycle in an agent trajectory.
+
+    `step_index` counts tool calls; `turn_index` counts API round-trips. They
+    differ when a model emits several tool calls in one (parallel) turn: those
+    steps share a `turn_index` but get distinct `step_index` values. Turn count
+    is the real latency/efficiency cost — see rubrics._detect_efficiency.
+    `turn_index` is optional so legacy trajectories (captured before turn
+    tracking) still load; detectors fall back to step count when it's absent.
+    """
 
     step_index: int
+    turn_index: int | None = None
     thought: str | None = None
     tool_call: ToolCall
     tool_response: ToolResponse

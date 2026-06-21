@@ -2,6 +2,18 @@
 
 Each rubric defines the system prompt and user prompt templates
 that the LLM judge uses to score a trajectory on one dimension.
+
+DELIBERATE: the user_prompt_template renders only observable behavior —
+tool_call.tool_name, tool_call.parameters, and tool_response. It does NOT
+render TrajectoryStep.thought, and must not. `thought` is vendor-asymmetric:
+Anthropic populates it from leading text blocks, while OpenAI's chat-completion
+tool-call turns return content=None (and o-series reasoning text is never
+exposed by the API at all). Feeding it to an LLM-judged dimension would give
+the judge richer context for one vendor than another — a latent bias in a
+cross-vendor comparison. Judge observable behavior, not narration. If reasoning
+must be scored, elicit it symmetrically from both vendors via a structured
+contract; do not interpolate `thought` here. Asymmetry origin:
+runner._extract_thought_anthropic vs the OpenAI path's choice.message.content.
 """
 
 from __future__ import annotations
@@ -339,39 +351,56 @@ def _detect_tool_selection(
 def _detect_efficiency(
     traj: AgentTrajectory, scen: Scenario
 ) -> DimensionScore:
-    """Steps-vs-budget + action-loop penalty.
+    """Effort-vs-budget + action-loop penalty.
 
     Phase 4 D2: action-loop detection (DET-02) is folded into efficiency.
-    base score: 1.0 if steps <= expected_len; 1.0 → 0.7 linear from
+    base score: 1.0 if effort <= expected_len; 1.0 → 0.7 linear from
     expected_len to max_reasonable_steps; 0.7 → 0.0 over the next 5 steps.
     Loop penalty: 0.1 per consecutive-identical pair, capped at 0.5.
+
+    "Effort" is API round-trips (turns), not tool calls, when the trajectory
+    carries a turn_index for every step. Round-trips are the real
+    latency/efficiency cost: a model that batches N tool calls into one
+    parallel turn is more efficient than one making N sequential turns, even
+    though both make N calls — and only the turn-aware path can see that
+    difference. Falls back to raw step count for legacy trajectories captured
+    before turn tracking (any step missing turn_index). The loop penalty stays
+    on steps: redundant calls are wasteful regardless of how they're batched.
     """
     steps = len(traj.steps)
     expected_len = max(1, len(scen.expected_tool_sequence))
     max_steps = max(expected_len, scen.max_reasonable_steps)
 
-    if steps <= expected_len:
+    turn_ids = {s.turn_index for s in traj.steps}
+    turns_known = bool(traj.steps) and None not in turn_ids
+    effort = len(turn_ids) if turns_known else steps
+
+    if effort <= expected_len:
         base = 1.0
-    elif steps <= max_steps:
-        ratio = (steps - expected_len) / max(1, max_steps - expected_len)
+    elif effort <= max_steps:
+        ratio = (effort - expected_len) / max(1, max_steps - expected_len)
         base = 1.0 - 0.3 * ratio
     else:
-        over = steps - max_steps
+        over = effort - max_steps
         base = max(0.0, 0.7 - 0.14 * over)
 
     loops = _count_consecutive_identical(traj.steps)
     penalty = min(0.5, 0.1 * loops)
     score = max(0.0, base - penalty)
 
+    effort_label = f"{effort} turns" if turns_known else f"{steps} steps"
     return DimensionScore(
         dimension="efficiency",
         score=round(score, 3),
         reasoning=(
-            f"{steps} steps (expected ~{expected_len}, "
-            f"max_reasonable {max_steps}); {loops} action-loops"
+            f"{effort_label} over {steps} calls "
+            f"(expected ~{expected_len}, max_reasonable {max_steps}); "
+            f"{loops} action-loops"
         ),
         evidence=[
             f"steps={steps}",
+            f"turns={len(turn_ids)}" if turns_known else "turns=unknown",
+            f"effort={effort}",
             f"expected_len={expected_len}",
             f"max_reasonable_steps={max_steps}",
             f"action_loops={loops}",
