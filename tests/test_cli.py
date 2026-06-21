@@ -1,11 +1,18 @@
-"""Tests for cli argparse parsing (Phase 3 VEND-02 + plan-checker C1).
+"""Tests for CLI parsing and command-level failure contracts.
 
 Two test classes:
 - TestCompareArgparse — verifies the new --judge-model flag on compare
 - TestBuildParserSmoke — defends the _build_parser() extraction (T2 refactor)
 """
 
-from agent_evaluator.cli import _build_parser
+import argparse
+import asyncio
+import json
+
+import pytest
+
+from agent_evaluator.cli import _build_parser, _cmd_dispatch, _cmd_run
+from agent_evaluator.providers import DEFAULT_MODEL
 
 
 class TestCompareArgparse:
@@ -23,11 +30,10 @@ class TestCompareArgparse:
         args = parser.parse_args(["compare", "--models", "gpt-4o,gpt-4o-mini"])
         assert args.judge_model is None
 
-    def test_evaluate_judge_model_default_unchanged(self):
-        """Anti-regression: evaluate's --judge-model still defaults to claude-sonnet-4."""
+    def test_evaluate_uses_shared_default_model(self):
         parser = _build_parser()
         args = parser.parse_args(["evaluate"])
-        assert args.judge_model == "claude-sonnet-4-20250514"
+        assert args.judge_model == DEFAULT_MODEL
 
     def test_evaluate_accepts_openai_judge(self):
         """Anti-regression: evaluate accepts --judge-model gpt-4o (T2 enables this
@@ -65,3 +71,57 @@ class TestBuildParserSmoke:
         parser = _build_parser()
         args = parser.parse_args(["evaluate"])
         assert args.command == "evaluate"
+
+    def test_main_parser_parses_dispatch(self):
+        parser = _build_parser()
+        args = parser.parse_args([
+            "dispatch", "--model", "gpt-5.4-mini", "--scenario", "l1_equipment"
+        ])
+        assert args.command == "dispatch"
+        assert args.model == "gpt-5.4-mini"
+        assert args.scenario == "l1_equipment"
+
+
+def test_dispatch_command_writes_markdown_and_json(monkeypatch, tmp_path):
+    import agent_evaluator.dispatch as dispatch
+
+    monkeypatch.setattr(dispatch, "LLMDispatchAgent", lambda **_kwargs: dispatch.reference_solver)
+    output = tmp_path / "dispatch.md"
+    args = argparse.Namespace(
+        model="test-model",
+        judge_model=None,
+        scenario="all",
+        deterministic_reasoning=True,
+        output=str(output),
+    )
+
+    _cmd_dispatch(args)
+
+    assert output.is_file()
+    payload = json.loads(output.with_suffix(".json").read_text())
+    assert payload["model_id"] == "test-model"
+    assert len(payload["results"]) == len(dispatch.all_scenarios())
+
+
+def test_run_command_exits_nonzero_when_any_scenario_fails(monkeypatch, tmp_path):
+    import agent_evaluator.runner as runner_module
+    import scenarios.registry as registry
+
+    class FailingRunner:
+        def __init__(self, model):
+            self.model = model
+
+        async def run_scenario(self, scenario):
+            raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr(runner_module, "AgentRunner", FailingRunner)
+    monkeypatch.setattr(registry, "load_scenario", lambda _sid: object())
+    args = argparse.Namespace(
+        model=DEFAULT_MODEL,
+        output_dir=str(tmp_path),
+        scenario="broken",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        asyncio.run(_cmd_run(args))
+    assert exc.value.code == 1

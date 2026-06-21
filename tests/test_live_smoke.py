@@ -23,6 +23,7 @@ import pytest
 
 from agent_evaluator.judge import AnthropicJudge, OpenAIJudge, make_judge
 from agent_evaluator.models import AgentTrajectory
+from agent_evaluator.providers import DEFAULT_MODEL
 from scenarios.registry import load_scenario
 
 
@@ -36,7 +37,7 @@ async def test_live_anthropic_judge_short_circuit():
     scenario = load_scenario("weather_lookup")  # no error_injection
     trajectory = AgentTrajectory(
         scenario_id=scenario.id,
-        model_id="claude-sonnet-4-20250514",
+        model_id=DEFAULT_MODEL,
         steps=[],
     )
     result = await judge._evaluate_dimension("error_recovery", trajectory, scenario)
@@ -53,7 +54,7 @@ async def test_live_anthropic_judge_llm_dim():
     scenario = load_scenario("weather_lookup")
     trajectory = AgentTrajectory(
         scenario_id=scenario.id,
-        model_id="claude-sonnet-4-20250514",
+        model_id=DEFAULT_MODEL,
         steps=[],
     )
     result = await judge._evaluate_dimension("parameter_quality", trajectory, scenario)
@@ -66,8 +67,8 @@ async def test_live_anthropic_judge_llm_dim():
 @pytest.mark.live
 @pytest.mark.asyncio
 async def test_live_make_judge_routes_openai():
-    """Live: make_judge('gpt-4o') returns an OpenAIJudge instance (Phase 3
+    """Live: a current GPT model returns an OpenAIJudge instance (Phase 3
     F-C dispatch closure).  Requires OPENAI_API_KEY to construct the real
     OpenAI client inside make_judge."""
-    judge = make_judge("gpt-4o")
+    judge = make_judge("gpt-5.4-mini")
     assert isinstance(judge, OpenAIJudge)

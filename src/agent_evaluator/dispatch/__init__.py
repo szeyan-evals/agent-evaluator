@@ -48,6 +48,7 @@ from agent_evaluator.dispatch.runner import AgentResult, RunRecord, run_once
 from agent_evaluator.dispatch.scoring import (
     EvaluationReport,
     ScenarioResult,
+    deterministic_reasoning_judge,
     evaluate_all,
     keyword_reasoning_judge,
     score_scenario,
@@ -78,6 +79,7 @@ __all__ = [
     "all_scenarios",
     "build_world",
     "check_outcome",
+    "deterministic_reasoning_judge",
     "evaluate_all",
     "hard_violations",
     "keyword_reasoning_judge",

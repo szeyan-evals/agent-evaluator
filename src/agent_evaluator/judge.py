@@ -19,6 +19,7 @@ from agent_evaluator.models import (
     Scenario,
 )
 from agent_evaluator.pricing import estimate_cost
+from agent_evaluator.providers import DEFAULT_MODEL, is_openai_model
 from agent_evaluator.rubrics import RUBRICS, compute_overall_score
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ class AnthropicJudge:
     def __init__(
         self,
         client: anthropic.AsyncAnthropic | None = None,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = DEFAULT_MODEL,
         max_retries: int = 2,
     ):
         self.client = client or anthropic.AsyncAnthropic()
@@ -321,7 +322,7 @@ def make_judge(
 ) -> AnthropicJudge | OpenAIJudge:
     """Auto-route judge construction by model name prefix.
 
-    Mirrors AgentRunner's vendor dispatch (runner.py::_is_openai_model):
+    Uses the same shared vendor routing as AgentRunner:
     OpenAI prefixes ("gpt-", "o1-", "o3-", "o4-") route to OpenAIJudge;
     everything else routes to AnthropicJudge. Closes JUDGMENT.md F-D
     (OpenAIJudge previously unreachable).
@@ -339,7 +340,6 @@ def make_judge(
     Returns:
         AnthropicJudge or OpenAIJudge instance with model set.
     """
-    from agent_evaluator.runner import _is_openai_model
-    if _is_openai_model(model):
+    if is_openai_model(model):
         return OpenAIJudge(model=model, client=client)
     return AnthropicJudge(model=model, client=client)

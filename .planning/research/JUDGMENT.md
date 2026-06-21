@@ -230,7 +230,7 @@ Because:
 
 Seven reusable frameworks derived from cross-system corpus (4 systems in registry):
 
-1. **LAW — Silent-Coercion Indistinguishability Law.** When a system substitutes a default value for a failed operation in a type with no failure channel, the resulting artifacts are evidence of nothing — including their non-failed values, because consumers cannot tell which is which. Recurs in `smoke-test`, `agnus-server`, `agent-evaluator`. Apply by demanding a `status` discriminator on every fallible value emission.
+1. **LAW — Silent-Coercion Indistinguishability Law.** When a system substitutes a default value for a failed operation in a type with no failure channel, the resulting artifacts are evidence of nothing — including their non-failed values, because consumers cannot tell which is which. This recurs across evaluation systems. Apply by demanding a `status` discriminator on every fallible value emission.
 
 2. **PRINCIPLE — Catch-Wider-Than-Retry Trap.** When the outer error envelope is broader than the inner retry/recovery envelope, every error not anticipated by the inner net becomes a silent permanent failure. Apply by ensuring outer ⊆ inner, or making the absorb path observable.
 

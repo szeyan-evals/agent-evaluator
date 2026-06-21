@@ -9,6 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from agent_evaluator.providers import DEFAULT_MODEL
+
 load_dotenv()
 
 
@@ -32,7 +34,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--model", "-m",
-        default="claude-sonnet-4-20250514",
+        default=DEFAULT_MODEL,
         help="Model ID to test",
     )
     run_parser.add_argument(
@@ -54,7 +56,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     eval_parser.add_argument(
         "--judge-model",
-        default="claude-sonnet-4-20250514",
+        default=DEFAULT_MODEL,
         help="Model to use as judge (auto-routes to vendor by prefix)",
     )
 
@@ -76,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument(
         "--models",
         required=True,
-        help="Comma-separated model IDs (e.g., claude-sonnet-4-20250514,gpt-4o)",
+        help=f"Comma-separated model IDs (e.g., {DEFAULT_MODEL},gpt-5.4-mini)",
     )
     compare_parser.add_argument(
         "--judge-model",
@@ -100,6 +102,37 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Output comparison report path",
     )
 
+    # --- dispatch: run the synthetic dispatch benchmark end-to-end ---
+    dispatch_parser = sub.add_parser(
+        "dispatch",
+        help="Run the synthetic freight-dispatch benchmark",
+    )
+    dispatch_parser.add_argument(
+        "--model", "-m",
+        default=DEFAULT_MODEL,
+        help="Anthropic or OpenAI model to evaluate",
+    )
+    dispatch_parser.add_argument(
+        "--judge-model",
+        default=None,
+        help="Model for L2 reasoning judgment (defaults to --model)",
+    )
+    dispatch_parser.add_argument(
+        "--scenario", "-s",
+        default="all",
+        help="Dispatch scenario ID or 'all'",
+    )
+    dispatch_parser.add_argument(
+        "--deterministic-reasoning",
+        action="store_true",
+        help="Use the offline scenario-aware reasoning check instead of an LLM judge",
+    )
+    dispatch_parser.add_argument(
+        "--output", "-o",
+        default="results/dispatch-report.md",
+        help="Markdown report path; structured JSON is written beside it",
+    )
+
     # --- list: show available scenarios ---
     sub.add_parser("list", help="List available scenarios")
 
@@ -120,6 +153,8 @@ def main() -> None:
         _cmd_report(args)
     elif args.command == "compare":
         asyncio.run(_cmd_compare(args))
+    elif args.command == "dispatch":
+        _cmd_dispatch(args)
 
 
 def _cmd_list() -> None:
@@ -144,6 +179,7 @@ async def _cmd_run(args: argparse.Namespace) -> None:
     else:
         scenarios = {args.scenario: load_scenario(args.scenario)}
 
+    failures: list[str] = []
     for sid, scenario in scenarios.items():
         print(f"Running scenario: {sid}...", end=" ", flush=True)
         try:
@@ -153,6 +189,10 @@ async def _cmd_run(args: argparse.Namespace) -> None:
             print(f"done ({len(trajectory.steps)} steps) → {path}")
         except Exception as e:
             print(f"FAILED: {e}")
+            failures.append(f"{sid}: {e}")
+    if failures:
+        print(f"{len(failures)} scenario(s) failed.", file=sys.stderr)
+        raise SystemExit(1)
 
 
 async def _cmd_evaluate(args: argparse.Namespace) -> None:
@@ -173,11 +213,13 @@ async def _cmd_evaluate(args: argparse.Namespace) -> None:
         print("No trajectory files found.")
         sys.exit(1)
 
+    skipped = 0
     for tf in trajectory_files:
         trajectory = AgentRunner.load_trajectory(tf)
         scenario = scenarios.get(trajectory.scenario_id)
         if not scenario:
             print(f"Skipping {tf.name}: unknown scenario '{trajectory.scenario_id}'")
+            skipped += 1
             continue
 
         print(f"Evaluating: {tf.name}...", end=" ", flush=True)
@@ -185,6 +227,9 @@ async def _cmd_evaluate(args: argparse.Namespace) -> None:
         result_path = tf.with_name(tf.name.replace("trajectory_", "eval_"))
         result_path.write_text(result.model_dump_json(indent=2))
         print(f"overall={result.overall_score:.2f} → {result_path}")
+    if skipped:
+        print(f"{skipped} trajectory file(s) could not be evaluated.", file=sys.stderr)
+        raise SystemExit(1)
 
 
 def _cmd_report(args: argparse.Namespace) -> None:
@@ -218,7 +263,10 @@ async def _cmd_compare(args: argparse.Namespace) -> None:
     from agent_evaluator.runner import AgentRunner
     from scenarios.registry import load_all_scenarios, load_scenario
 
-    models = [m.strip() for m in args.models.split(",")]
+    models = [m.strip() for m in args.models.split(",") if m.strip()]
+    if not models:
+        print("At least one model is required.", file=sys.stderr)
+        raise SystemExit(2)
     # Phase 3 D3: default judge to the first model in --models. The user
     # can override with --judge-model. Self-judging caveat is in --help.
     judge_model = args.judge_model or models[0]
@@ -231,6 +279,7 @@ async def _cmd_compare(args: argparse.Namespace) -> None:
 
     results_by_model: dict[str, list] = {}
 
+    failures: list[str] = []
     for model in models:
         print(f"\n=== Model: {model} ===")
         runner = AgentRunner(model=model)
@@ -245,6 +294,7 @@ async def _cmd_compare(args: argparse.Namespace) -> None:
                 print(f"overall={result.overall_score:.2f}")
             except Exception as e:
                 print(f"FAILED: {e}")
+                failures.append(f"{model}/{sid}: {e}")
 
         results_by_model[model] = results
 
@@ -253,6 +303,62 @@ async def _cmd_compare(args: argparse.Namespace) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(report)
     print(f"\nComparison report: {output}")
+    if failures:
+        print(
+            f"Comparison is partial: {len(failures)} model/scenario run(s) failed.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+
+def _cmd_dispatch(args: argparse.Namespace) -> None:
+    from agent_evaluator.dispatch import (
+        EvaluationReport,
+        LLMDispatchAgent,
+        LLMReasoningJudge,
+        deterministic_reasoning_judge,
+        evaluate_all,
+        render_dispatch_report,
+        scenario_by_id,
+        score_scenario,
+    )
+
+    judge_model = None if args.deterministic_reasoning else (args.judge_model or args.model)
+    judge = (
+        deterministic_reasoning_judge
+        if args.deterministic_reasoning
+        else LLMReasoningJudge(model=judge_model)
+    )
+    agent = LLMDispatchAgent(model=args.model)
+
+    if args.scenario == "all":
+        report = evaluate_all(
+            agent,
+            judge,
+            model_id=args.model,
+            judge_model_id=judge_model or "deterministic",
+        )
+    else:
+        try:
+            scenario = scenario_by_id(args.scenario)
+        except KeyError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(2) from None
+        report = EvaluationReport(
+            results=[score_scenario(scenario, agent, judge)],
+            model_id=args.model,
+            judge_model_id=judge_model or "deterministic",
+        )
+
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(render_dispatch_report(report))
+    json_output = output.with_suffix(".json")
+    json_output.write_text(report.model_dump_json(indent=2))
+    signal, why = report.release_signal()
+    print(f"Dispatch report: {output}")
+    print(f"Structured results: {json_output}")
+    print(f"Release signal: {signal} — {why}")
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from agent_evaluator.models import (
     Scenario,
     ToolDefinition,
 )
+from agent_evaluator.providers import DEFAULT_MODEL
 
 
 def _scenario_no_injection() -> Scenario:
@@ -157,9 +158,9 @@ class TestMakeJudge:
 
     def test_make_judge_routes_anthropic(self):
         from agent_evaluator.judge import AnthropicJudge, make_judge
-        judge = make_judge("claude-sonnet-4-20250514")
+        judge = make_judge(DEFAULT_MODEL)
         assert isinstance(judge, AnthropicJudge)
-        assert judge.model == "claude-sonnet-4-20250514"
+        assert judge.model == DEFAULT_MODEL
 
     def test_make_judge_unknown_routes_anthropic(self):
         """Unknown prefixes (mistral, llama, etc.) route to Anthropic per
@@ -174,7 +175,7 @@ class TestMakeJudge:
         """Same client-injection contract for AnthropicJudge."""
         from agent_evaluator.judge import AnthropicJudge, make_judge
         fake = _FakeAnthropicClient()
-        judge = make_judge("claude-sonnet-4-20250514", client=fake)
+        judge = make_judge(DEFAULT_MODEL, client=fake)
         assert isinstance(judge, AnthropicJudge)
         assert judge.client is fake
 

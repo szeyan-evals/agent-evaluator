@@ -1,0 +1,10 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "Done.",
+        "tool_calls": []
+      }
+    }
+  ]
+}

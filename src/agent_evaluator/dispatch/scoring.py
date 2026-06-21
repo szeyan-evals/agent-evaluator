@@ -33,25 +33,64 @@ from agent_evaluator.dispatch.scenarios import all_scenarios
 ReasoningJudge = Callable[[DispatchScenario, str], "tuple[bool, str]"]
 
 _DETAIL_LOOKUPS = {"get_driver", "get_hours_of_service", "get_distance"}
-_REASONING_KEYWORDS = (
-    "equipment", "reefer", "dry van", "flatbed", "endorsement", "hazmat",
-    "hours", "hos", "deadhead", "distance", "priority", "tier", "premier",
-    "ban", "wait", "fair", "legal",
-)
 
 
-def keyword_reasoning_judge(scenario: DispatchScenario, rationale: str) -> tuple[bool, str]:
-    """Hermetic L2 stand-in: a rationale passes if it cites a decision factor.
+def _required_reasoning_terms(scenario: DispatchScenario) -> set[str]:
+    """Derive scenario-specific concepts a valid rationale should discuss."""
+    load = scenario.world.loads[scenario.expected.load_id]
+    drivers = list(scenario.world.drivers.values())
+    terms: set[str] = set()
 
-    Cheap and deterministic — good enough to discriminate "assigned the first
-    available driver" from a real justification, and to keep tests offline. The
-    real LLM judge (with a proper rubric) replaces this in live evaluation.
+    if load.required_endorsements:
+        terms.update({"endorsement", *(item.value for item in load.required_endorsements)})
+    if len({driver.equipment for driver in drivers}) > 1:
+        terms.update({"equipment", load.required_equipment.value.replace("_", " ")})
+    if len({driver.hos_remaining_minutes for driver in drivers}) > 1:
+        terms.update({"hours", "hos"})
+    if any(load.customer in driver.banned_customers for driver in drivers):
+        terms.update({"ban", "banned", "customer"})
+    if len({driver.tier for driver in drivers}) > 1:
+        terms.update({"tier", "premier", "tiebreak", "tie-break"})
+    if len({driver.minutes_waiting for driver in drivers}) > 1:
+        terms.update({"wait", "waiting", "fair", "fairness"})
+    if len({driver.location for driver in drivers}) > 1:
+        terms.update({"deadhead", "distance", "closest", "pickup"})
+    if len({item.priority for item in scenario.world.loads.values()}) > 1:
+        terms.update({"priority", "urgent"})
+    return terms or {"legal", "eligible"}
+
+
+def deterministic_reasoning_judge(
+    scenario: DispatchScenario, rationale: str
+) -> tuple[bool, str]:
+    """Hermetic, scenario-aware reasoning check.
+
+    This is deliberately stricter than a keyword-presence check: the rationale
+    must identify the expected decision (or refusal) and cite a factor that is
+    actually relevant to this scenario. Live CLI evaluation uses an LLM judge;
+    this deterministic implementation exists for offline tests and baselines.
     """
-    low = rationale.lower()
-    hits = [k for k in _REASONING_KEYWORDS if k in low]
-    if hits:
-        return True, f"cites {hits[:3]}"
-    return False, "rationale cites no decision factor"
+    low = " ".join(rationale.lower().replace("_", " ").split())
+    expected = scenario.expected
+
+    if expected.kind == "no_assign":
+        decision_ok = any(term in low for term in ("no legal", "refuse", "not assign"))
+    else:
+        decision_ok = bool(expected.correct_driver_id) and expected.correct_driver_id.lower() in low
+        if expected.kind == "assign_any_legal":
+            decision_ok = any(driver_id.lower() in low for driver_id in scenario.world.drivers)
+    if not decision_ok:
+        return False, "rationale does not identify the expected decision"
+
+    relevant_terms = _required_reasoning_terms(scenario)
+    hits = sorted(term for term in relevant_terms if term in low)
+    if not hits:
+        return False, "rationale does not cite a scenario-relevant decision factor"
+    return True, f"identifies decision and cites {hits[:3]}"
+
+
+# Compatibility alias for callers using the original public name.
+keyword_reasoning_judge = deterministic_reasoning_judge
 
 
 def _gathered_info_before_assigning(calls: list[dict]) -> bool:
@@ -105,6 +144,8 @@ class ScenarioResult(BaseModel):
 
 class EvaluationReport(BaseModel):
     results: list[ScenarioResult]
+    model_id: str | None = None
+    judge_model_id: str | None = None
 
     def overall(self) -> tuple[int, int]:
         passed = sum(1 for r in self.results if r.passed)
@@ -139,7 +180,7 @@ class EvaluationReport(BaseModel):
 def score_scenario(
     scenario: DispatchScenario, agent, judge: ReasoningJudge | None = None
 ) -> ScenarioResult:
-    judge = judge or keyword_reasoning_judge
+    judge = judge or deterministic_reasoning_judge
     runs = [run_once(scenario, agent) for _ in range(max(1, scenario.trials))]
     verdicts = [_run_passes(scenario, r, judge) for r in runs]
     trial_passes = sum(1 for ok, _ in verdicts if ok)
@@ -160,8 +201,16 @@ def score_scenario(
     )
 
 
-def evaluate_all(agent, judge: ReasoningJudge | None = None) -> EvaluationReport:
+def evaluate_all(
+    agent,
+    judge: ReasoningJudge | None = None,
+    *,
+    model_id: str | None = None,
+    judge_model_id: str | None = None,
+) -> EvaluationReport:
     """Run every dispatch scenario through `agent` and score it. One command."""
     return EvaluationReport(
-        results=[score_scenario(sc, agent, judge) for sc in all_scenarios()]
+        results=[score_scenario(sc, agent, judge) for sc in all_scenarios()],
+        model_id=model_id,
+        judge_model_id=judge_model_id,
     )

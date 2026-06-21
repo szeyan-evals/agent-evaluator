@@ -23,23 +23,23 @@ from agent_evaluator.models import (
     ToolResponse,
     TrajectoryStep,
 )
+from agent_evaluator.providers import (
+    DEFAULT_MODEL,
+    is_openai_model,
+    openai_token_limit_parameter,
+)
 
 logger = logging.getLogger(__name__)
 
-# Models that should be routed to OpenAI
-OPENAI_PREFIXES = ("gpt-", "o1-", "o3-", "o4-")
-
 
 def _is_openai_model(model: str) -> bool:
-    return any(model.startswith(p) for p in OPENAI_PREFIXES)
+    """Backward-compatible private wrapper around shared provider routing."""
+    return is_openai_model(model)
 
 
-# o-series reasoning models (o1/o3/o4...) reject the legacy `max_tokens`
-# param and require `max_completion_tokens`. gpt-* chat models still use
-# `max_tokens`. Detect so the OpenAI path picks the right kwarg instead of
-# erroring the moment self.model points at a reasoning model.
 def _is_openai_reasoning_model(model: str) -> bool:
-    return model.startswith(("o1", "o3", "o4"))
+    """Backward-compatible helper retained for callers and tests."""
+    return openai_token_limit_parameter(model) == "max_completion_tokens"
 
 
 class MockToolExecutor:
@@ -129,7 +129,7 @@ class AgentRunner:
     - Everything else → Anthropic
     """
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, model: str = DEFAULT_MODEL):
         self.model = model
         self._use_openai = _is_openai_model(model)
 
@@ -171,8 +171,15 @@ class AgentRunner:
                 messages=messages,
             )
 
-            total_input_tokens += response.usage.input_tokens
-            total_output_tokens += response.usage.output_tokens
+            usage = response.usage
+            if usage is None:
+                # Missing telemetry is unknown, not zero. Once any turn lacks
+                # usage, the complete-run total cannot be reconstructed.
+                total_input_tokens = None
+                total_output_tokens = None
+            elif total_input_tokens is not None and total_output_tokens is not None:
+                total_input_tokens += usage.input_tokens
+                total_output_tokens += usage.output_tokens
 
             tool_use_blocks = [
                 b for b in response.content if b.type == "tool_use"
@@ -252,13 +259,7 @@ class AgentRunner:
 
         start_time = time.monotonic()
 
-        # Reasoning models require max_completion_tokens; chat models use
-        # max_tokens. Pick once outside the loop.
-        token_param = (
-            "max_completion_tokens"
-            if _is_openai_reasoning_model(self.model)
-            else "max_tokens"
-        )
+        token_param = openai_token_limit_parameter(self.model)
 
         for turn_index in range(max_steps):
             response = await self._openai_client.chat.completions.create(
@@ -270,7 +271,10 @@ class AgentRunner:
 
             choice = response.choices[0]
             usage = response.usage
-            if usage:
+            if usage is None:
+                total_input_tokens = None
+                total_output_tokens = None
+            elif total_input_tokens is not None and total_output_tokens is not None:
                 total_input_tokens += usage.prompt_tokens
                 total_output_tokens += usage.completion_tokens
 

@@ -14,6 +14,13 @@ from agent_evaluator.dispatch.scoring import EvaluationReport
 def render_dispatch_report(report: EvaluationReport) -> str:
     lines: list[str] = ["# Dispatch Agent Evaluation\n"]
 
+    if report.model_id:
+        lines.append(f"**Model:** `{report.model_id}`")
+    if report.judge_model_id:
+        lines.append(f"**Reasoning judge:** `{report.judge_model_id}`")
+    if report.model_id or report.judge_model_id:
+        lines.append("")
+
     passed, total = report.overall()
     signal, why = report.release_signal()
     lines.append(f"**Overall:** {passed}/{total} scenarios passed\n")

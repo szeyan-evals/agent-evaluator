@@ -4,7 +4,7 @@ Exercises AgentRunner._run_anthropic and _run_openai against FixtureClient
 replay clients. Includes:
   - Happy-path Anthropic + OpenAI loops (trajectory shape + token totals)
   - F-G regression guard: OpenAI choice.message round-trip into next turn
-  - F-H strict-xfail: usage=None raises AttributeError (deferred fix)
+  - Missing usage telemetry remains explicit as None instead of crashing or zeroing
   - Max-steps termination guard: loop exits with final_answer=None
 
 Client injection pattern: AgentRunner.__init__ builds the real SDK client
@@ -52,6 +52,7 @@ _ANTHRO_NO_USAGE = _ANTHRO_DIR / "agent_response_no_usage.json"
 
 _OPENAI_TOOL_USE = _OPENAI_DIR / "agent_response_tool_use.json"
 _OPENAI_FINAL = _OPENAI_DIR / "agent_response_final.json"
+_OPENAI_NO_USAGE = _OPENAI_DIR / "agent_response_no_usage.json"
 
 
 # ---------------------------------------------------------------------------
@@ -135,24 +136,19 @@ async def test_run_anthropic_happy_path():
 
 
 # ---------------------------------------------------------------------------
-# F-H: usage=None strict xfail
+# Missing usage telemetry
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="F-H: usage=None raises AttributeError at runner.py line 166; fix deferred to post-v1",
-)
 @pytest.mark.asyncio
-async def test_run_anthropic_usage_none_raises():
-    """Strict xfail: feeding a no-usage fixture causes AttributeError (F-H regression guard).
-
-    When fixed, this test will start xpassing — that is the intended signal.
-    """
+async def test_run_anthropic_usage_none_is_preserved():
     runner = _make_anthropic_runner([_ANTHRO_NO_USAGE])
     scenario = _weather_scenario()
-    # Should raise AttributeError: 'NoneType' object has no attribute 'input_tokens'
-    await runner._run_anthropic(scenario)
+    trajectory = await runner._run_anthropic(scenario)
+
+    assert trajectory.final_answer == "Done."
+    assert trajectory.total_input_tokens is None
+    assert trajectory.total_output_tokens is None
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +196,17 @@ async def test_run_openai_happy_path():
     assert trajectory.total_input_tokens == 350
     assert trajectory.total_output_tokens == 67  # 42 + 25
     assert trajectory.scenario_id == "weather_lookup"
+
+
+@pytest.mark.asyncio
+async def test_run_openai_usage_none_is_preserved():
+    runner = _make_openai_runner([_OPENAI_NO_USAGE])
+    scenario = _weather_scenario()
+    trajectory = await runner._run_openai(scenario)
+
+    assert trajectory.final_answer == "Done."
+    assert trajectory.total_input_tokens is None
+    assert trajectory.total_output_tokens is None
 
 
 # ---------------------------------------------------------------------------

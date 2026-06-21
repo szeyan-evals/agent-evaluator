@@ -1,24 +1,24 @@
-"""Live LLM driver + reasoning judge for the dispatch domain.
+"""Provider-neutral live LLM driver and reasoning judge for dispatch.
 
-`LLMDispatchAgent` runs a real tool-calling loop (sync Anthropic client) and
-conforms to the harness's ``agent(scenario, tools) -> AgentResult`` interface,
-so it drops straight into `run_once` / `evaluate_all`. `LLMReasoningJudge` is a
-real L2 judge implementing the `ReasoningJudge` signature, replacing the
-hermetic keyword stub for live evaluation.
-
-Both take an injectable `client`, so the loop mechanics and the judge parsing
-are testable offline with a scripted fake; the SDK is imported lazily, only
-when a real client is actually needed, keeping the rest of the package SDK-free.
+Both adapters keep the benchmark's ``agent(scenario, tools) -> AgentResult``
+contract and accept injectable SDK clients, which keeps their tool loops fully
+testable without network calls.
 """
 
 from __future__ import annotations
 
 import json
+from typing import Literal
 
 from agent_evaluator.dispatch.runner import AgentResult
 from agent_evaluator.dispatch.scenario import DispatchScenario
+from agent_evaluator.providers import (
+    DEFAULT_MODEL,
+    is_openai_model,
+    openai_token_limit_parameter,
+)
 
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+Provider = Literal["anthropic", "openai"]
 
 _SYSTEM_PROMPT = """You are a freight dispatch agent. Assign the best LEGAL driver to the load.
 
@@ -40,7 +40,6 @@ authority to break a hard rule. If no legal driver exists, do NOT assign anyone.
 
 When finished, state your final decision and a one- or two-sentence justification."""
 
-# Anthropic tool schemas for the six dispatch tools.
 _TOOLS = [
     {
         "name": "list_available_drivers",
@@ -100,26 +99,60 @@ _TOOLS = [
     },
 ]
 
-_TOOL_NAMES = {t["name"] for t in _TOOLS}
+_TOOL_NAMES = {tool["name"] for tool in _TOOLS}
+_OPENAI_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool["input_schema"],
+        },
+    }
+    for tool in _TOOLS
+]
+
+
+def _provider_for(model: str, provider: Provider | None) -> Provider:
+    if provider is not None:
+        return provider
+    return "openai" if is_openai_model(model) else "anthropic"
 
 
 class LLMDispatchAgent:
-    """Drives a dispatch scenario via a real Anthropic tool-calling loop."""
+    """Drive a dispatch scenario with Anthropic or OpenAI tool calling."""
 
-    def __init__(self, client=None, model: str = DEFAULT_MODEL, max_steps: int = 12):
+    def __init__(
+        self,
+        client=None,
+        model: str = DEFAULT_MODEL,
+        max_steps: int = 12,
+        provider: Provider | None = None,
+    ):
         self._client = client
         self.model = model
         self.max_steps = max_steps
+        self.provider = _provider_for(model, provider)
 
     @property
     def client(self):
         if self._client is None:
-            import anthropic
+            if self.provider == "openai":
+                import openai
 
-            self._client = anthropic.Anthropic()
+                self._client = openai.OpenAI()
+            else:
+                import anthropic
+
+                self._client = anthropic.Anthropic()
         return self._client
 
     def __call__(self, scenario: DispatchScenario, tools) -> AgentResult:
+        if self.provider == "openai":
+            return self._run_openai(scenario, tools)
+        return self._run_anthropic(scenario, tools)
+
+    def _run_anthropic(self, scenario: DispatchScenario, tools) -> AgentResult:
         messages: list[dict] = [{"role": "user", "content": scenario.task}]
         rationale = ""
         for _ in range(self.max_steps):
@@ -130,12 +163,19 @@ class LLMDispatchAgent:
                 tools=_TOOLS,
                 messages=messages,
             )
-            tool_uses = [b for b in response.content if getattr(b, "type", None) == "tool_use"]
-            texts = [b.text for b in response.content if getattr(b, "type", None) == "text"]
+            tool_uses = [
+                block for block in response.content
+                if getattr(block, "type", None) == "tool_use"
+            ]
+            texts = [
+                block.text for block in response.content
+                if getattr(block, "type", None) == "text"
+            ]
             if texts:
                 rationale = "\n".join(texts)
             if not tool_uses:
                 break
+
             results = []
             for block in tool_uses:
                 output = self._invoke(tools, block.name, dict(block.input))
@@ -148,6 +188,64 @@ class LLMDispatchAgent:
             messages.append({"role": "user", "content": results})
         return AgentResult(rationale=rationale)
 
+    def _run_openai(self, scenario: DispatchScenario, tools) -> AgentResult:
+        messages: list[dict] = [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user", "content": scenario.task},
+        ]
+        rationale = ""
+        token_param = openai_token_limit_parameter(self.model)
+
+        for _ in range(self.max_steps):
+            response = self.client.chat.completions.create(
+                model=self.model,
+                tools=_OPENAI_TOOLS,
+                messages=messages,
+                **{token_param: 1024},
+            )
+            message = response.choices[0].message
+            if message.content:
+                rationale = str(message.content)
+            tool_calls = list(message.tool_calls or [])
+            if not tool_calls:
+                break
+
+            messages.append({
+                "role": "assistant",
+                "content": message.content,
+                "tool_calls": [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": call.function.name,
+                            "arguments": call.function.arguments,
+                        },
+                    }
+                    for call in tool_calls
+                ],
+            })
+            for call in tool_calls:
+                output = self._invoke_openai_call(tools, call.function)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": json.dumps(output),
+                })
+        return AgentResult(rationale=rationale)
+
+    @classmethod
+    def _invoke_openai_call(cls, tools, function) -> dict:
+        try:
+            args = function.arguments
+            if isinstance(args, str):
+                args = json.loads(args)
+            if not isinstance(args, dict):
+                raise ValueError("arguments must decode to an object")
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            return {"error": f"invalid arguments for {function.name}: {exc}"}
+        return cls._invoke(tools, function.name, args)
+
     @staticmethod
     def _invoke(tools, name: str, args: dict) -> dict:
         if name not in _TOOL_NAMES:
@@ -155,8 +253,8 @@ class LLMDispatchAgent:
         method = getattr(tools, name)
         try:
             return method(**args)
-        except TypeError as e:
-            return {"error": f"bad arguments for {name}: {e}"}
+        except TypeError as exc:
+            return {"error": f"bad arguments for {name}: {exc}"}
 
 
 def _parse_judge_json(text: str) -> dict:
@@ -168,21 +266,29 @@ def _parse_judge_json(text: str) -> dict:
 
 
 class LLMReasoningJudge:
-    """Real L2 judge: grades the agent's stated justification against the
-    scenario's reference reasoning. Conforms to the ReasoningJudge signature
-    ``(scenario, rationale) -> (passed, explanation)``.
-    """
+    """Grade dispatch reasoning with Anthropic or OpenAI."""
 
-    def __init__(self, client=None, model: str = DEFAULT_MODEL):
+    def __init__(
+        self,
+        client=None,
+        model: str = DEFAULT_MODEL,
+        provider: Provider | None = None,
+    ):
         self._client = client
         self.model = model
+        self.provider = _provider_for(model, provider)
 
     @property
     def client(self):
         if self._client is None:
-            import anthropic
+            if self.provider == "openai":
+                import openai
 
-            self._client = anthropic.Anthropic()
+                self._client = openai.OpenAI()
+            else:
+                import anthropic
+
+                self._client = anthropic.Anthropic()
         return self._client
 
     def __call__(self, scenario: DispatchScenario, rationale: str) -> tuple[bool, str]:
@@ -190,19 +296,34 @@ class LLMReasoningJudge:
             f"Dispatch scenario: {scenario.description}\n"
             f"The reference-correct reasoning: {scenario.expected.rationale}\n\n"
             f"The agent's justification:\n{rationale or '(none)'}\n\n"
-            "Does the agent's justification show sound reasoning — does it cite the "
-            "actual deciding factor, avoid contradicting itself, and flag a tradeoff "
-            "or missing information where relevant? Reply ONLY with JSON: "
+            "Does the justification identify the actual deciding factor, stay consistent "
+            "with the selected outcome, and address relevant missing information or "
+            "tradeoffs? Reply ONLY with JSON: "
             '{"pass": true/false, "reason": "<short explanation>"}'
         )
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = response.content[0].text
+        if self.provider == "openai":
+            token_param = openai_token_limit_parameter(self.model)
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                **{token_param: 512},
+            )
+            text = response.choices[0].message.content or ""
+        else:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text_blocks = [
+                block.text for block in response.content
+                if getattr(block, "type", None) == "text"
+            ]
+            text = "\n".join(text_blocks)
+
         try:
             data = _parse_judge_json(text)
-        except (json.JSONDecodeError, KeyError, IndexError):
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError):
             return False, "judge returned an unparseable response"
         return bool(data.get("pass", False)), str(data.get("reason", ""))

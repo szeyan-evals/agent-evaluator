@@ -90,6 +90,8 @@ def test_l2_requires_sound_reasoning_not_just_outcome():
 def test_keyword_reasoning_judge():
     sc = scenario_by_id("l1_equipment")
     assert keyword_reasoning_judge(sc, "D2 has the reefer equipment required")[0] is True
+    assert keyword_reasoning_judge(sc, "Equipment matters in general")[0] is False
+    assert keyword_reasoning_judge(sc, "I selected D2 for no stated reason")[0] is False
     assert keyword_reasoning_judge(sc, "because I said so")[0] is False
 
 

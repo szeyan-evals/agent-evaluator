@@ -48,6 +48,29 @@ class _ScriptedClient:
         return SimpleNamespace(content=blocks, stop_reason=None, usage=None)
 
 
+def _openai_tool_call(name, arguments, call_id="call-1"):
+    return SimpleNamespace(
+        id=call_id,
+        function=SimpleNamespace(name=name, arguments=arguments),
+    )
+
+
+def _openai_message(content=None, tool_calls=None):
+    return SimpleNamespace(content=content, tool_calls=tool_calls or [])
+
+
+class _ScriptedOpenAIClient:
+    def __init__(self, messages):
+        self._messages = list(messages)
+        self.create_calls = []
+        self.chat = SimpleNamespace(completions=self)
+
+    def create(self, **kwargs):
+        self.create_calls.append(kwargs)
+        message = self._messages.pop(0)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
 def test_agent_loop_executes_tools_and_books_assignment():
     # list -> assign D2 -> final justification text.
     client = _ScriptedClient([
@@ -85,6 +108,33 @@ def test_agent_stops_when_no_tool_calls():
     assert "not assign" in rec.rationale.lower()
 
 
+def test_openai_agent_loop_executes_tools_and_uses_reasoning_token_parameter():
+    client = _ScriptedOpenAIClient([
+        _openai_message(tool_calls=[_openai_tool_call("list_available_drivers", "{}")]),
+        _openai_message(tool_calls=[
+            _openai_tool_call(
+                "assign_driver_to_load",
+                '{"driver_id":"D2","load_id":"L1"}',
+                "call-2",
+            )
+        ]),
+        _openai_message(content="D2 has the required reefer equipment."),
+    ])
+    agent = LLMDispatchAgent(client=client, model="gpt-5.4-mini")
+    rec = run_once(scenario_by_id("l1_equipment"), agent)
+
+    assert rec.final_world.loads["L1"].assigned_driver_id == "D2"
+    assert "reefer" in rec.rationale
+    assert client.create_calls[0]["max_completion_tokens"] == 1024
+    assert client.create_calls[0]["tools"][0]["type"] == "function"
+
+
+def test_openai_agent_returns_invalid_argument_error_to_model():
+    function = SimpleNamespace(name="get_driver", arguments="not-json")
+    output = LLMDispatchAgent._invoke_openai_call(object(), function)
+    assert "invalid arguments" in output["error"]
+
+
 # ── reasoning judge ──────────────────────────────────────────────────────
 def _judge_client(reply_text):
     class _C:
@@ -111,6 +161,17 @@ def test_judge_handles_unparseable_reply():
     judge = LLMReasoningJudge(client=_judge_client("sorry, no JSON here"), model="fake")
     ok, why = judge(scenario_by_id("l1_equipment"), "whatever")
     assert ok is False and "unparseable" in why
+
+
+def test_openai_reasoning_judge_parses_verdict():
+    client = _ScriptedOpenAIClient([
+        _openai_message(content='{"pass": true, "reason": "correct tiebreak"}')
+    ])
+    judge = LLMReasoningJudge(client=client, model="gpt-5.4-mini")
+    ok, why = judge(scenario_by_id("l2_tier_tiebreak"), "D2 wins the tier tiebreak")
+    assert ok is True
+    assert "tiebreak" in why
+    assert client.create_calls[0]["response_format"] == {"type": "json_object"}
 
 
 # ── live smoke (opt-in; deselected by default) ───────────────────────────

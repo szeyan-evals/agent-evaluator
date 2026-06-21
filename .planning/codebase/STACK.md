@@ -8,7 +8,7 @@ Inferred from `pyproject.toml` and confirmed by the System Judge evidence manife
 |---|---|---|---|
 | Python | ≥3.11 | Language runtime | `pyproject.toml::requires-python`. `tests/` and `src/` use 3.11 features (`from __future__ import annotations`, `Literal`, `match` keyword in some scenarios). |
 | `pydantic` | ≥2.7 | Data modeling | Hub of the codebase — every module imports from `models.py`. Forward references in `models.py:24, 57` rely on Pydantic v2 auto-rebuild. |
-| `anthropic` | ≥0.40 | Anthropic SDK | Used by both `runner.py` (agent under test) and `judge.py` (judge LLM). Default judge model: `claude-sonnet-4-20250514`. |
+| `anthropic` | ≥0.40 | Anthropic SDK | Used by both `runner.py` (agent under test) and `judge.py` (judge LLM). The active default is defined centrally in `providers.py`. |
 | `openai` | ≥1.50 | OpenAI SDK | Used by `runner.py` for OpenAI-family agents. `OpenAIJudge` exists but is unreachable from CLI today. |
 | `jinja2` | ≥3.1 | Prompt templates | Used by `rubrics.py` to render judge prompts per dimension. |
 | `python-dotenv` | ≥1.0 | Env loading | Loads `.env` in `cli.py` and `examples/sample_run.py`. |
